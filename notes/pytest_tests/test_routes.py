@@ -1,9 +1,12 @@
+# test_router.py
 from http import HTTPStatus
 from django.urls import reverse
 import pytest
 from pytest_django.asserts import assertRedirects
+from .factories import UserFactory
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize("name", [
     'notes:home',
     'users:login',
@@ -11,31 +14,28 @@ from pytest_django.asserts import assertRedirects
     'users:signup'
 ])
 def test_pages_availability_for_anonymous_user(client, name):
-    """Проверяет доступность страниц для анонимного пользователя:
-    - Главная страница
-    - Страницы регистрации, входа и выхода.
-    """
+    """Проверяет доступность страниц для анонимного пользователя."""
     url = reverse(name)
     response = client.get(url)
     assert response.status_code == HTTPStatus.OK
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize('name', [
     'notes:list',
     'notes:add',
     'notes:success'
 ])
 def test_pages_availability_for_auth_user(not_author_client, name):
-    """
-    - Cтраница добавления новой заметки add/.
-    - Аутентифицированному пользователю доступна страница со списком заметок
-      notes/, страница успешного добавления заметки done/,
-    """
+    """Проверяет доступность страниц для аутентифицированного пользователя."""
+    user = UserFactory()  # Используем Factory для создания пользователя
+    not_author_client.force_login(user)  # Авторизуем пользователя в клиенте
     url = reverse(name)
     response = not_author_client.get(url)
     assert response.status_code == HTTPStatus.OK
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     'parametrized_client, expected_status',
     (
@@ -54,17 +54,14 @@ def test_pages_availability_for_author(
     note,
     expected_status
 ):
-    """
-    - Страницы отдельной заметки, удаления и редактирования заметки доступны
-      только автору заметки.
-    - Если на эти страницы попытается зайти другой пользователь — вернётся
-      ошибка 404.
-    """
+    """Проверяет доступность страниц для автора заметки."""
+    # note уже создана через фикстуру
     url = reverse(name, args=(note.slug,))
     response = parametrized_client.get(url)
     assert response.status_code == expected_status
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     'name, args',
     (
@@ -77,12 +74,7 @@ def test_pages_availability_for_author(
     ),
 )
 def test_redirects(client, name, args):
-    """
-    - При попытке перейти на страницу списка заметок, страницу успешного
-      добавления записи, страницу добавления заметки, отдельной заметки,
-      редактирования или удаления заметки анонимный пользователь
-      перенаправляется на страницу логина.
-    """
+    """Проверка перенаправлений для анонимных пользователей."""
     login_url = reverse('users:login')
     url = reverse(name, args=args)
     expected_url = f'{login_url}?next={url}'
